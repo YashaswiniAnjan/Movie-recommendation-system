@@ -14,7 +14,7 @@ from pyspark.ml.recommendation import ALS
 # 1. LOAD MOVIE DATA
 # -----------------------------
 
-movies = pd.read_csv("data/movielens_100k.csv")
+movies = pd.read_csv("movielens_100k.csv")
 
 ratings = pd.read_csv(
     "u.data.txt",
