@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+import streamlit as st
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -133,7 +134,7 @@ recommended_movies = movies[
 # 5. TMDB API
 # -----------------------------
 
-TMDB_TOKEN = ""
+TMDB_TOKEN = st.secrets["TMDB_TOKEN"]
 headers = {
     "Authorization": f"Bearer {TMDB_TOKEN}",
     "accept": "application/json"
