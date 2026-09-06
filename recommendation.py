@@ -10,9 +10,9 @@ from pyspark.sql.functions import col
 from pyspark.ml.recommendation import ALS
 
 
-# -----------------------------
-# 1. LOAD MOVIE DATA
-# -----------------------------
+# ============================================================
+# 1. LOAD DATA
+# ============================================================
 
 movies = pd.read_csv("movielens_100k.csv")
 
@@ -23,9 +23,9 @@ ratings = pd.read_csv(
 )
 
 
-# -----------------------------
-# 2. CONTENT-BASED RECOMMENDER
-# -----------------------------
+# ============================================================
+# 2. CONTENT-BASED RECOMMENDATION
+# ============================================================
 
 movies["content"] = (
     movies["title"].fillna("") + " " +
@@ -64,9 +64,9 @@ def recommend_movies(title, n=5):
     return movies.iloc[indices]
 
 
-# -----------------------------
-# 3. PYSPARK ALS
-# -----------------------------
+# ============================================================
+# 3. PYSPARK ALS PERSONALIZED RECOMMENDATION
+# ============================================================
 
 spark = (
     SparkSession.builder
@@ -102,39 +102,41 @@ als_model = als.fit(ratings_spark)
 print("ALS MODEL TRAINED SUCCESSFULLY")
 
 
-# -----------------------------
-# 4. ALS RECOMMENDATIONS
-# -----------------------------
+def get_als_recommendations(user_id=1, n=5):
 
-user_df = (
-    ratings_spark
-    .filter(col("user_id") == 1)
-    .select("user_id")
-    .distinct()
-)
+    user_df = (
+        ratings_spark
+        .filter(col("user_id") == user_id)
+        .select("user_id")
+        .distinct()
+    )
 
-user_recommendations = als_model.recommendForUserSubset(
-    user_df,
-    5
-)
+    user_recommendations = als_model.recommendForUserSubset(
+        user_df,
+        n
+    )
 
-recommended_ids = [
-    r["movie_id"]
-    for r in user_recommendations
-    .select("recommendations")
-    .collect()[0]["recommendations"]
-]
+    if user_recommendations.count() == 0:
+        return movies.iloc[0:0]
 
-recommended_movies = movies[
-    movies["movie_id"].isin(recommended_ids)
-]
+    recommended_ids = [
+        r["movie_id"]
+        for r in user_recommendations
+        .select("recommendations")
+        .collect()[0]["recommendations"]
+    ]
+
+    return movies[
+        movies["movie_id"].isin(recommended_ids)
+    ]
 
 
-# -----------------------------
-# 5. TMDB API
-# -----------------------------
+# ============================================================
+# 4. TMDB API
+# ============================================================
 
 TMDB_TOKEN = st.secrets["TMDB_TOKEN"]
+
 headers = {
     "Authorization": f"Bearer {TMDB_TOKEN}",
     "accept": "application/json"
@@ -146,7 +148,9 @@ def get_tmdb_info(title, year=None):
     response = requests.get(
         "https://api.themoviedb.org/3/search/movie",
         headers=headers,
-        params={"query": title}
+        params={
+            "query": title
+        }
     )
 
     if response.status_code != 200:
@@ -156,31 +160,3 @@ def get_tmdb_info(title, year=None):
 
     if not results:
         return None
-
-    movie = results[0]
-
-    return {
-        "title": movie["title"],
-        "overview": movie.get("overview", ""),
-        "rating": movie.get("vote_average", 0),
-        "poster_url": (
-            "https://image.tmdb.org/t/p/w500"
-            + movie["poster_path"]
-            if movie.get("poster_path")
-            else None
-        )
-    }
-
-
-# -----------------------------
-# 6. TMDB DETAILS FOR ALS RESULTS
-# -----------------------------
-
-tmdb_recommendations = []
-
-for title in recommended_movies["title"]:
-
-    info = get_tmdb_info(title)
-
-    if info:
-        tmdb_recommendations.append(info)
